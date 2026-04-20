@@ -1,5 +1,6 @@
 use crate::cli::{Cli, Commands};
 use clap::Parser;
+use std::process::ExitCode;
 mod cli;
 mod commands;
 
@@ -36,7 +37,8 @@ mod commands;
 //      single largest variant (plus a tiny tag to know which variant it is).
 //      It is incredibly memory efficient.
 
-fn main() {
+fn main() -> ExitCode {
+    let _dropper = LoudDropper;
     let cli = Cli::parse();
 
     let result = match cli.command {
@@ -50,6 +52,13 @@ fn main() {
     };
 
     if let Err(e) = result {
+        if let Some(io_err) = e.downcast_ref::<std::io::Error>()
+            && io_err.kind() == std::io::ErrorKind::NotFound
+        {
+            eprintln!("Error: file not found");
+            println!("About to return ExitCode::from(2)");
+            return ExitCode::from(2);
+        }
         eprintln!("Error: {:#}", e);
         // So, difference between Returning form main (whether returning Result or
         // ExitCode): Rust cleanly closes the main function's scope. Destructors (Drop traits)
@@ -58,6 +67,20 @@ fn main() {
         // Calling `exit(1)`: This immediately and violently aborts the process at the OS layer.
         // No Drop implementations are run. Any destructors for variables in main (or anywhere up
         // the stack) are completely skipped.
-        std::process::exit(1);
+        // println!("About to call process::exit(1)...");
+        // std::process::exit(1);
+        println!("About to return ExitCode::from(1)");
+        return ExitCode::from(1);
+    }
+
+    ExitCode::SUCCESS
+}
+
+// Dummy struct to test drop function calls
+struct LoudDropper;
+
+impl Drop for LoudDropper {
+    fn drop(&mut self) {
+        println!("LoudDropper was destroyed(drop funciton ran)!");
     }
 }
